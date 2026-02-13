@@ -17,7 +17,6 @@ import torch
 
 
 
-
 STOCKS = [
     'AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'META', 'TSLA', 'BRK-B', 'LLY', 'AVGO', 'V', 'JPM', 'WMT', 'XOM', 'MA', 'UNH', 'PG', 'JNJ', 'HD', 'COST',
     'ABBV', 'MRK', 'CRM', 'AMD', 'PEP', 'CVX', 'NFLX', 'KO', 'ADBE', 'BAC', 'ACN', 'LIN', 'TMO', 'MCD', 'DIS', 'CSCO', 'ABT', 'INTC', 'WFC', 'CMCSA',
@@ -53,7 +52,6 @@ ETFS = [
 
 
 
-
 TICKERS = list(set(STOCKS + BONDS + COMMODITIES + FOREX + ETFS))
 START_DATE = '2023-01-01'
 END_DATE = datetime.datetime.now().strftime('%Y-%m-%d')
@@ -70,7 +68,6 @@ TARGET_CLUSTERS = 20
 
 
 
-
 if torch.cuda.is_available():
     DEVICE = torch.device("cuda")
     print("Running on device: CUDA")
@@ -80,8 +77,6 @@ elif torch.backends.mps.is_available():
 else:
     DEVICE = torch.device("cpu")
     print("Running on device: CPU")
-
-
 
 
 
@@ -98,7 +93,6 @@ def set_deterministic(seed=42):
 
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-
 
 
     
@@ -125,10 +119,6 @@ def calculate_technical_indicators(df):
     df['Volatility'] = df['Log_Ret_Raw'].rolling(window=20).std()
     
     return df
-
-
-
-
 
 def get_feature_data(tickers, start, end):
     print(f"Downloading data for {len(tickers)} assets...")
@@ -195,10 +185,6 @@ def get_feature_data(tickers, start, end):
         
     return features_dict, valid_tickers
 
-
-
-
-
 def prepare_tensor_dataset(features_dict, seq_len):
 
     all_sequences = []
@@ -218,8 +204,6 @@ def prepare_tensor_dataset(features_dict, seq_len):
     
     # Autoencoder: Input = Target
     return TensorDataset(tensor_data, tensor_data)
-
-
 
 
 
@@ -248,10 +232,6 @@ def create_model_components(feature_size, d_model, nhead, num_layers, dropout):
     
     return input_net, pos_embedding, transformer, decoder_net
 
-
-
-
-
 def functional_forward_pass(src, input_net, pos_embedding, transformer, decoder_net):
 
     # Input projection + Positional Encoding
@@ -267,10 +247,6 @@ def functional_forward_pass(src, input_net, pos_embedding, transformer, decoder_
     recon = decoder_net(memory)
     
     return recon, embedding
-
-
-
-
 
 def execute_training(dataloader, components, epochs):
     input_net, pos_embedding, transformer, decoder_net = components
@@ -315,10 +291,6 @@ def execute_training(dataloader, components, epochs):
             loop.set_description(f"Epoch {epoch+1}/{epochs}")
             loop.set_postfix(loss=loss.item())
 
-
-
-
-    
 def extract_embeddings(features_dict, components, seq_len):
     input_net, pos_embedding, transformer, decoder_net = components
     
@@ -342,10 +314,6 @@ def extract_embeddings(features_dict, components, seq_len):
                 
     return pd.DataFrame(embeddings).T
 
-
-
-
-    
 def execute_portfolio_selection(embeddings_df, start_date, end_date):
     print("Fetching raw data for performance evaluation...")
     tickers = list(embeddings_df.index)
@@ -404,8 +372,6 @@ def execute_portfolio_selection(embeddings_df, start_date, end_date):
         final_picks.append({'Ticker': best_ticker, 'Cluster_ID': i, 'Sharpe': round(stats['Sharpe'], 2), 'Vol': round(stats['Vol'], 2)})
 
     return pd.DataFrame(final_picks), embeddings_df, results
-
-
 
 
 
