@@ -1,119 +1,109 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
 import pandas as pd
 import yfinance as yf
 from sklearn.preprocessing import RobustScaler
 from sklearn.cluster import AgglomerativeClustering
-from sklearn.decomposition import PCA
+from sklearn.preprocessing import normalize
 import matplotlib.pyplot as plt
-import seaborn as sns
 from tqdm import tqdm
 import datetime
 
 
-class Config:
-
-    
-    STOCKS = [
-        'AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'META', 'TSLA', 'BRK-B', 'LLY', 'AVGO', 'V', 'JPM', 'WMT', 'XOM', 'MA', 'UNH', 'PG', 'JNJ', 'HD', 'COST',
-        'ABBV', 'MRK', 'CRM', 'AMD', 'PEP', 'CVX', 'NFLX', 'KO', 'ADBE', 'BAC', 'ACN', 'LIN', 'TMO', 'MCD', 'DIS', 'CSCO', 'ABT', 'INTC', 'WFC', 'CMCSA',
-        'INTU', 'QCOM', 'VZ', 'IBM', 'AMGN', 'PFE', 'TXN', 'NOW', 'PM', 'SPGI', 'GE', 'UNP', 'CAT', 'ISRG', 'HON', 'RTX', 'LMT', 'GS', 'AMAT', 'UBER',
-        'LOW', 'BKNG', 'ELV', 'BLK', 'SYK', 'TJX', 'MS', 'PGR', 'MDLZ', 'ADP', 'C', 'BMY', 'GILD', 'MMC', 'ADI', 'VRTX', 'LRCX', 'CB', 'REGN', 'SCHW',
-        'MO', 'ETN', 'CI', 'BSX', 'SO', 'PANW', 'KLAC', 'TMUS', 'DE', 'MU', 'SNPS', 'SBUX', 'KKR', 'CDNS', 'EOG', 'SLB', 'COP', 'OXY', 'MPC',
-        'PSX', 'VLO', 'KMI', 'WMB', 'BKR', 'HAL', 'DVN', 'TRGP', 'FANG', 'CTRA', 'EQT', 'APA', 'OVV', 'NEE', 'DUK', 'AEP', 'D',
-        'SRE', 'PEG', 'WEC', 'ES', 'XEL', 'ED', 'EIX', 'DTE', 'ETR', 'PPL', 'CMS', 'AEE', 'ATO', 'LNT', 'EVRG', 'CNP', 'NI', 'PNW', 'NRG', 'BA',
-        'MMM', 'ITW', 'EMR', 'PH', 'GD', 'TDG', 'NOC', 'LHX', 'HWM', 'TXT', 'CARR', 'OTIS', 'ROK', 'AME', 'FAST', 'VRSK', 'EFX',
-        'URI', 'PWR', 'GWW', 'DOV', 'XYL', 'WAB', 'IR', 'HII', 'LDOS', 'AXON', 'EXPD', 'JBHT', 'CHRW', 'KNX', 'ODFL', 'SAIA', 'ARCB', 'LSTR'
-    ]
-
-    
-    BONDS = [
-        'TLT', 'IEF', 'SHY', 'IEI', 'AGG', 'BND', 'LQD', 'HYG', 'JNK', 'MBB', 'TIP', 'GOVT', 'SHV', 'BIL', 'VGIT', 'VGLT', 'VCIT', 'VCSH', 'BNDX', 'EMB',
-        'VWOB', 'IGIB', 'IGSB', 'USIG', 'STIP', 'VTIP', 'SCHO', 'SCHR', 'SPTL', 'TLH', 'ZROZ', 'EDV', 'MUB'
-    ]
-
-    COMMODITIES = [
-        'GLD', 'IAU', 'SLV', 'PPLT', 'PALL', 'USO', 'BNO', 'UNG', 'UGA', 'DBA', 'DBC', 'GSG', 'DJP', 'COW', 'MOO', 'CORN', 'SOYB', 'WEAT', 'JO',
-        'SGG', 'BAL', 'CPER', 'JJN', 'LIT', 'URA', 'REMX', 'PICK', 'WOOD', 'CUT', 'GNR', 'GUNR'
-    ]
 
 
-    FOREX = [
-        'EURUSD=X', 'JPY=X', 'GBPUSD=X', 'AUDUSD=X', 'NZDUSD=X', 'EURJPY=X', 'GBPJPY=X', 'EURGBP=X', 'EURCHF=X', 'EURCAD=X', 'CAD=X', 'CHF=X',
-        'HKD=X', 'SGD=X', 'INR=X', 'MXN=X', 'PHP=X', 'IDR=X', 'THB=X', 'MYR=X', 'ZAR=X', 'RUB=X', 'SEK=X', 'NOK=X', 'DKK=X', 'PLN=X', 'HUF=X',
-        'TRY=X', 'BRL=X', 'CNY=X'
-    ]
 
+STOCKS = [
+    'AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'META', 'TSLA', 'BRK-B', 'LLY', 'AVGO', 'V', 'JPM', 'WMT', 'XOM', 'MA', 'UNH', 'PG', 'JNJ', 'HD', 'COST',
+    'ABBV', 'MRK', 'CRM', 'AMD', 'PEP', 'CVX', 'NFLX', 'KO', 'ADBE', 'BAC', 'ACN', 'LIN', 'TMO', 'MCD', 'DIS', 'CSCO', 'ABT', 'INTC', 'WFC', 'CMCSA',
+    'INTU', 'QCOM', 'VZ', 'IBM', 'AMGN', 'PFE', 'TXN', 'NOW', 'PM', 'SPGI', 'GE', 'UNP', 'CAT', 'ISRG', 'HON', 'RTX', 'LMT', 'GS', 'AMAT', 'UBER',
+    'LOW', 'BKNG', 'ELV', 'BLK', 'SYK', 'TJX', 'MS', 'PGR', 'MDLZ', 'ADP', 'C', 'BMY', 'GILD', 'MMC', 'ADI', 'VRTX', 'LRCX', 'CB', 'REGN', 'SCHW',
+    'MO', 'ETN', 'CI', 'BSX', 'SO', 'PANW', 'KLAC', 'TMUS', 'DE', 'MU', 'SNPS', 'SBUX', 'KKR', 'CDNS', 'EOG', 'SLB', 'COP', 'OXY', 'MPC',
+    'PSX', 'VLO', 'KMI', 'WMB', 'BKR', 'HAL', 'DVN', 'TRGP', 'FANG', 'CTRA', 'EQT', 'APA', 'OVV', 'NEE', 'DUK', 'AEP', 'D',
+    'SRE', 'PEG', 'WEC', 'ES', 'XEL', 'ED', 'EIX', 'DTE', 'ETR', 'PPL', 'CMS', 'AEE', 'ATO', 'LNT', 'EVRG', 'CNP', 'NI', 'PNW', 'NRG', 'BA',
+    'MMM', 'ITW', 'EMR', 'PH', 'GD', 'TDG', 'NOC', 'LHX', 'HWM', 'TXT', 'CARR', 'OTIS', 'ROK', 'AME', 'FAST', 'VRSK', 'EFX',
+    'URI', 'PWR', 'GWW', 'DOV', 'XYL', 'WAB', 'IR', 'HII', 'LDOS', 'AXON', 'EXPD', 'JBHT', 'CHRW', 'KNX', 'ODFL', 'SAIA', 'ARCB', 'LSTR'
+]
 
-    ETFS = [
-        'SPY', 'QQQ', 'DIA', 'IWM', 'VOO', 'IVV', 'VTI', 'VEA', 'VWO', 'EFA', 'EEM', 'XLF', 'XLK', 'XLV', 'XLE', 'XLC', 'XLY', 'XLP', 'XLI', 'XLB', 'XLRE', 'XLU',
-        'RSP', 'MTUM', 'VLUE', 'USMV', 'QUAL', 'IJR', 'IJH', 'IWB', 'IWR', 'SCHD', 'VYM', 'VIG'
-    ]
-    
+BONDS = [
+    'TLT', 'IEF', 'SHY', 'IEI', 'AGG', 'BND', 'LQD', 'HYG', 'JNK', 'MBB', 'TIP', 'GOVT', 'SHV', 'BIL', 'VGIT', 'VGLT', 'VCIT', 'VCSH', 'BNDX', 'EMB',
+    'VWOB', 'IGIB', 'IGSB', 'USIG', 'STIP', 'VTIP', 'SCHO', 'SCHR', 'SPTL', 'TLH', 'ZROZ', 'EDV', 'MUB'
+]
 
-    TICKERS = list(set(STOCKS + BONDS + COMMODITIES + FOREX + ETFS))
-    
-    START_DATE = '2023-01-01' 
-    END_DATE = datetime.datetime.now().strftime('%Y-%m-%d')
-    
-    SEQUENCE_LENGTH = 30  
-    
+COMMODITIES = [
+    'GLD', 'IAU', 'SLV', 'PPLT', 'PALL', 'USO', 'BNO', 'UNG', 'UGA', 'DBA', 'DBC', 'GSG', 'DJP', 'COW', 'MOO', 'CORN', 'SOYB', 'WEAT', 'JO',
+    'SGG', 'BAL', 'CPER', 'JJN', 'LIT', 'URA', 'REMX', 'PICK', 'WOOD', 'CUT', 'GNR', 'GUNR'
+]
 
-    FEATURE_SIZE = 5      
-    
-    d_model = 64          
-    nhead = 4
-    num_layers = 1        
-    dropout = 0.1
-    
-    BATCH_SIZE = 128      
-    EPOCHS = 6            
-    TARGET_CLUSTERS = 20  
+FOREX = [
+    'EURUSD=X', 'JPY=X', 'GBPUSD=X', 'AUDUSD=X', 'NZDUSD=X', 'EURJPY=X', 'GBPJPY=X', 'EURGBP=X', 'EURCHF=X', 'EURCAD=X', 'CAD=X', 'CHF=X',
+    'HKD=X', 'SGD=X', 'INR=X', 'MXN=X', 'PHP=X', 'IDR=X', 'THB=X', 'MYR=X', 'ZAR=X', 'RUB=X', 'SEK=X', 'NOK=X', 'DKK=X', 'PLN=X', 'HUF=X',
+    'TRY=X', 'BRL=X', 'CNY=X'
+]
+
+ETFS = [
+    'SPY', 'QQQ', 'DIA', 'IWM', 'VOO', 'IVV', 'VTI', 'VEA', 'VWO', 'EFA', 'EEM', 'XLF', 'XLK', 'XLV', 'XLE', 'XLC', 'XLY', 'XLP', 'XLI', 'XLB', 'XLRE', 'XLU',
+    'RSP', 'MTUM', 'VLUE', 'USMV', 'QUAL', 'IJR', 'IJH', 'IWB', 'IWR', 'SCHD', 'VYM', 'VIG'
+]
+
+TICKERS = list(set(STOCKS + BONDS + COMMODITIES + FOREX + ETFS))
+START_DATE = '2023-01-01'
+END_DATE = datetime.datetime.now().strftime('%Y-%m-%d')
+
+SEQUENCE_LENGTH = 30
+FEATURE_SIZE = 5
+D_MODEL = 64
+NHEAD = 4
+NUM_LAYERS = 1
+DROPOUT = 0.1
+BATCH_SIZE = 128
+EPOCHS = 6
+TARGET_CLUSTERS = 20
 
 
 if torch.cuda.is_available():
-    device = torch.device("cuda")
+    DEVICE = torch.device("cuda")
     print("Running on device: CUDA")
 elif torch.backends.mps.is_available():
-    device = torch.device("mps")
+    DEVICE = torch.device("mps")
     print("Running on device: MPS (Apple Silicon)")
 else:
-    device = torch.device("cpu")
+    DEVICE = torch.device("cpu")
     print("Running on device: CPU")
 
 
+
+
 def calculate_technical_indicators(df):
-    
-    #RSI Calculation 
+    # RSI Calculation
     delta = df['Adj Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-
     
     loss = loss.replace(0, np.nan).fillna(1e-6)
-    
     rs = gain / loss
     df['RSI'] = 100 - (100 / (1 + rs))
-
     df['RSI'] = df['RSI'] / 100.0 
 
-    #MACD Calculation 
+    # MACD Calculation
     exp12 = df['Adj Close'].ewm(span=12, adjust=False).mean()
     exp26 = df['Adj Close'].ewm(span=26, adjust=False).mean()
     macd = exp12 - exp26
     signal = macd.ewm(span=9, adjust=False).mean()
     df['MACD_Diff'] = macd - signal
 
-    #Volatility Calculation 
+    # Volatility Calculation
     df['Log_Ret_Raw'] = np.log(df['Adj Close'] / df['Adj Close'].shift(1))
     df['Volatility'] = df['Log_Ret_Raw'].rolling(window=20).std()
     
     return df
 
-    
+
+
+
 def get_feature_data(tickers, start, end):
     print(f"Downloading data for {len(tickers)} assets...")
     
@@ -142,7 +132,7 @@ def get_feature_data(tickers, start, end):
             
             if len(df) < 200: continue
             
-            #Feature Engineering
+            # Feature Engineering
             df['Log_Ret'] = np.log(df['Adj Close'] / df['Adj Close'].shift(1))
             
             if 'Volume' in df.columns:
@@ -153,7 +143,7 @@ def get_feature_data(tickers, start, end):
             
             df['Log_Vol_Chg'] = df['Log_Vol_Chg'].replace([np.inf, -np.inf], 0.0)
 
-            #Secondary indices calculation 
+            # Secondary indices calculation
             df = calculate_technical_indicators(df)
             
             feature_cols = ['Log_Ret', 'Log_Vol_Chg', 'RSI', 'MACD_Diff', 'Volatility']
@@ -161,10 +151,10 @@ def get_feature_data(tickers, start, end):
             
             df_clean = df_clean.replace([np.inf, -np.inf], np.nan).dropna()
             
-            if len(df_clean) < Config.SEQUENCE_LENGTH: 
+            if len(df_clean) < SEQUENCE_LENGTH: 
                 continue
-           
-            #Normalization and Loading 
+            
+            # Normalization and Loading
             scaler = RobustScaler()
             scaled_data = scaler.fit_transform(df_clean.values)
             
@@ -180,77 +170,145 @@ def get_feature_data(tickers, start, end):
     return features_dict, valid_tickers
 
 
-class MultiFactorDataset(Dataset):
-    def __init__(self, features_dict, seq_len):
-        self.sequences = []
-        for ticker, data in features_dict.items():
-            n_samples = len(data) - seq_len
-            if n_samples > 0:
-                for t in range(n_samples):
-                    self.sequences.append(data[t : t + seq_len])
-        self.sequences = torch.FloatTensor(np.array(self.sequences))
-
-    def __len__(self): return len(self.sequences)
-    def __getitem__(self, idx): return self.sequences[idx], self.sequences[idx]
-
-class AssetEmbeddingModel(nn.Module):
-    def __init__(self, feature_size, d_model, nhead, num_layers, dropout=0.1):
-        super(AssetEmbeddingModel, self).__init__()
-        self.input_net = nn.Sequential(
-            nn.Linear(feature_size, d_model),
-            nn.LayerNorm(d_model),
-            nn.ReLU()
-        )
-        self.pos_embedding = nn.Parameter(torch.randn(1, Config.SEQUENCE_LENGTH, d_model))
-        encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, dim_feedforward=d_model*2, dropout=dropout, batch_first=True)
-        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
-        self.decoder_net = nn.Sequential(
-            nn.Linear(d_model, d_model // 2),
-            nn.ReLU(),
-            nn.Linear(d_model // 2, feature_size) 
-        )
-
-    def forward(self, src):
-        x = self.input_net(src) + self.pos_embedding
-        memory = self.transformer(x)
-        embedding = torch.mean(memory, dim=1) 
-        recon = self.decoder_net(memory)
-        return recon, embedding
 
 
-def train_engine(model, dataloader, epochs):
-    criterion = nn.MSELoss()
-    optimizer = optim.AdamW(model.parameters(), lr=1e-3)
+def prepare_tensor_dataset(features_dict, seq_len):
+
+    all_sequences = []
+    for ticker, data in features_dict.items():
+        n_samples = len(data) - seq_len
+        if n_samples > 0:
+        
+            sequences = [data[t : t + seq_len] for t in range(n_samples)]
+            all_sequences.append(np.array(sequences))
+            
+    if not all_sequences:
+        raise ValueError("Not enough data to create sequences.")
+        
+
+    flat_sequences = np.concatenate(all_sequences, axis=0)
+    tensor_data = torch.FloatTensor(flat_sequences)
     
-    model.train()
+    # Autoencoder: Input = Target
+    return TensorDataset(tensor_data, tensor_data)
+
+
+
+
+def create_model_components(feature_size, d_model, nhead, num_layers, dropout):
+
+    input_net = nn.Sequential(
+        nn.Linear(feature_size, d_model),
+        nn.LayerNorm(d_model),
+        nn.ReLU()
+    ).to(DEVICE)
+
+    pos_embedding = nn.Parameter(torch.randn(1, SEQUENCE_LENGTH, d_model, device=DEVICE))
+    
+
+    encoder_layer = nn.TransformerEncoderLayer(
+        d_model=d_model, nhead=nhead, dim_feedforward=d_model*2, 
+        dropout=dropout, batch_first=True
+    )
+    transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers).to(DEVICE)
+
+    decoder_net = nn.Sequential(
+        nn.Linear(d_model, d_model // 2),
+        nn.ReLU(),
+        nn.Linear(d_model // 2, feature_size)
+    ).to(DEVICE)
+    
+    return input_net, pos_embedding, transformer, decoder_net
+
+
+
+def functional_forward_pass(src, input_net, pos_embedding, transformer, decoder_net):
+
+    # Input projection + Positional Encoding
+    x = input_net(src) + pos_embedding
+    
+    # Transformer Pass
+    memory = transformer(x)
+    
+    # Embedding extraction (Mean pooling)
+    embedding = torch.mean(memory, dim=1)
+    
+    # Reconstruction
+    recon = decoder_net(memory)
+    
+    return recon, embedding
+
+
+
+def execute_training(dataloader, components, epochs):
+    input_net, pos_embedding, transformer, decoder_net = components
+    
+
+    all_params = (
+        list(input_net.parameters()) + 
+        [pos_embedding] + 
+        list(transformer.parameters()) + 
+        list(decoder_net.parameters())
+    )
+    
+    criterion = nn.MSELoss()
+    optimizer = optim.AdamW(all_params, lr=1e-3)
+    
+
+    input_net.train()
+    transformer.train()
+    decoder_net.train()
+    
     for epoch in range(epochs):
         loop = tqdm(dataloader, leave=False)
         total_loss = 0
+        
         for batch_x, batch_y in loop:
-            batch_x, batch_y = batch_x.to(device), batch_y.to(device)
+            batch_x, batch_y = batch_x.to(DEVICE), batch_y.to(DEVICE)
+            
             optimizer.zero_grad()
-            recon, _ = model(batch_x)
+
+            
+            recon, _ = functional_forward_pass(batch_x, input_net, pos_embedding, transformer, decoder_net)
+            
             loss = criterion(recon, batch_y)
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            
+            # Gradient Clipping
+            torch.nn.utils.clip_grad_norm_(all_params, 1.0)
+            
             optimizer.step()
+            
             total_loss += loss.item()
             loop.set_description(f"Epoch {epoch+1}/{epochs}")
             loop.set_postfix(loss=loss.item())
 
-def generate_embeddings(model, features_dict, seq_len):
-    model.eval()
+def extract_embeddings(features_dict, components, seq_len):
+    input_net, pos_embedding, transformer, decoder_net = components
+    
+
+    input_net.eval()
+    transformer.eval()
+    decoder_net.eval()
+    
     embeddings = {}
+    
     with torch.no_grad():
         for ticker, data in features_dict.items():
+
             last_sequence = data[-seq_len:]
             if len(last_sequence) == seq_len:
-                tensor_in = torch.FloatTensor(last_sequence).unsqueeze(0).to(device)
-                _, emb = model(tensor_in)
+                tensor_in = torch.FloatTensor(last_sequence).unsqueeze(0).to(DEVICE)
+                
+                _, emb = functional_forward_pass(tensor_in, input_net, pos_embedding, transformer, decoder_net)
+                
                 embeddings[ticker] = emb.cpu().numpy().flatten()
+                
     return pd.DataFrame(embeddings).T
 
-def smart_portfolio_selection(embeddings_df, start_date, end_date):
+
+
+def execute_portfolio_selection(embeddings_df, start_date, end_date):
     print("Fetching raw data for performance evaluation...")
     tickers = list(embeddings_df.index)
     
@@ -259,7 +317,6 @@ def smart_portfolio_selection(embeddings_df, start_date, end_date):
     except Exception as e:
         print(f"Error: {e}")
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-
 
     price_series_list = []
     
@@ -284,7 +341,6 @@ def smart_portfolio_selection(embeddings_df, start_date, end_date):
     raw_prices = pd.concat(price_series_list, axis=1)
     raw_prices = raw_prices.dropna(axis=1, how='all')
 
-
     returns = np.log(raw_prices / raw_prices.shift(1))
     ann_ret = returns.mean() * 252
     ann_vol = returns.std() * np.sqrt(252)
@@ -295,16 +351,14 @@ def smart_portfolio_selection(embeddings_df, start_date, end_date):
     common = metrics.index.intersection(embeddings_df.index)
     metrics, embeddings_df = metrics.loc[common], embeddings_df.loc[common]
 
-
-    from sklearn.preprocessing import normalize
     X_norm = normalize(embeddings_df.values)
-    clustering = AgglomerativeClustering(n_clusters=Config.TARGET_CLUSTERS, metric='euclidean', linkage='ward')
+    clustering = AgglomerativeClustering(n_clusters=TARGET_CLUSTERS, metric='euclidean', linkage='ward')
     results = metrics.copy()
     results['Cluster'] = clustering.fit_predict(X_norm)
     
     final_picks = []
     print("\n====== Multi-Asset Portfolio Selection (Sharpe Optimized) ======")
-    for i in range(Config.TARGET_CLUSTERS):
+    for i in range(TARGET_CLUSTERS):
         cluster_group = results[results['Cluster'] == i]
         if cluster_group.empty: continue
         best_ticker = cluster_group['Sharpe'].idxmax()
@@ -314,49 +368,47 @@ def smart_portfolio_selection(embeddings_df, start_date, end_date):
     return pd.DataFrame(final_picks), embeddings_df, results
 
 
+
+
 if __name__ == "__main__":
     
     print("Phase 1: Training on Historical Data (2023-2024)...")
-    train_features, _ = get_feature_data(Config.TICKERS, '2023-01-01', '2024-12-31')
+    train_features, _ = get_feature_data(TICKERS, '2023-01-01', '2024-12-31')
     
-    dataset = MultiFactorDataset(train_features, Config.SEQUENCE_LENGTH)
-    dataloader = DataLoader(dataset, batch_size=Config.BATCH_SIZE, shuffle=True, drop_last=True)
-    
-    model = AssetEmbeddingModel(Config.FEATURE_SIZE, Config.d_model, Config.nhead, Config.num_layers, Config.dropout).to(device)
-    train_engine(model, dataloader, Config.EPOCHS)
 
+    dataset = prepare_tensor_dataset(train_features, SEQUENCE_LENGTH)
+    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
+    
+
+    model_components = create_model_components(FEATURE_SIZE, D_MODEL, NHEAD, NUM_LAYERS, DROPOUT)
+    
+
+    execute_training(dataloader, model_components, EPOCHS)
     
     print("\nPhase 2: Selecting Portfolio at 2024-12-31...")
-
-    embeddings_df = generate_embeddings(model, train_features, Config.SEQUENCE_LENGTH)
     
 
-    portfolio, _, _ = smart_portfolio_selection(embeddings_df, '2023-01-01', '2024-12-31')
+    embeddings_df = extract_embeddings(train_features, model_components, SEQUENCE_LENGTH)
+    
+
+    portfolio, _, _ = execute_portfolio_selection(embeddings_df, '2023-01-01', '2024-12-31')
     selected_tickers = portfolio['Ticker'].tolist()
     print(f"AI Selected Top Picks: {selected_tickers}")
     
-
     print("\nPhase 3: Validating Performance in 2025 (Out-of-Sample)...")
     
-    def get_price_series(df_all, ticker):
-
+    def get_price_series_helper(df_all, ticker):
         try:
             if ticker not in df_all.columns.levels[0]:
                 return None
-            
             df_t = df_all[ticker]
-            
-            if 'Adj Close' in df_t.columns:
-                return df_t['Adj Close']
-            elif 'Close' in df_t.columns:
-                return df_t['Close']
-            else:
-                return None
+            if 'Adj Close' in df_t.columns: return df_t['Adj Close']
+            elif 'Close' in df_t.columns: return df_t['Close']
+            else: return None
         except Exception:
             return None
 
     try:
-
         validation_tickers = list(set(selected_tickers + ['SPY']))
         test_data = yf.download(validation_tickers, start='2025-01-01', end=datetime.datetime.now().strftime('%Y-%m-%d'), group_by='ticker', progress=False)
         
@@ -364,10 +416,9 @@ if __name__ == "__main__":
         valid_count = 0
         
         for t in selected_tickers:
-            close_price = get_price_series(test_data, t)
+            close_price = get_price_series_helper(test_data, t)
             
             if close_price is not None:
-
                 ret = close_price.pct_change(fill_method=None).fillna(0)
                 strategy_ret = strategy_ret + ret
                 valid_count += 1
@@ -377,13 +428,12 @@ if __name__ == "__main__":
         else:
             raise ValueError("No valid price data found for selected tickers.")
         
-        spy_close = get_price_series(test_data, 'SPY')
+        spy_close = get_price_series_helper(test_data, 'SPY')
         if spy_close is not None:
             benchmark_ret = spy_close.pct_change(fill_method=None).fillna(0)
         else:
             print("Warning: SPY data missing, using flat line for benchmark.")
             benchmark_ret = pd.Series(0.0, index=test_data.index)
-
         
         cumulative_strategy = (1 + strategy_ret).cumprod()
         cumulative_benchmark = (1 + benchmark_ret).cumprod()
