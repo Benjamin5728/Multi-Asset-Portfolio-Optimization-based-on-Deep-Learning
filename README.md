@@ -1,121 +1,92 @@
-# Multi-Asset Porfolio Optimization based on Deep Learning 📈
+# Single-Asset-Class Portfolio Optimization based on Deep Learning
 
-![Python](https://img.shields.io/badge/Python-3.8%2B-blue)
-![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-red)
-![License](https://img.shields.io/badge/License-MIT-green)
-![Status](https://img.shields.io/badge/Status-Active-success)
-![Domain](https://img.shields.io/badge/Domain-Quantitative_Finance-orange)
+## 📈 Project Overview
+This project implements a sophisticated **quantitative equity strategy** focused on the S&P 500 universe. It leverages **Deep Learning (Transformer Autoencoders)** and **Unsupervised Clustering** to identify structural market regimes and capture Alpha through dynamic sector rotation.
 
-## 📖 Executive Summary
+Unlike traditional multi-asset portfolios that often dilute returns by over-allocating to "safe havens" (Bonds/Cash), this strategy is designed for **pure equity exposure**, utilizing a **Rolling Walk-Forward** framework to aggressively target high risk-adjusted return opportunities in the stock market.
 
-This is a sophisticated quantitative investment framework designed to identify latent market regimes and construct robust, uncorrelated portfolios.
+## 💡 Inspiration & Design Philosophy
 
-Unlike traditional strategies that rely on linear correlations or simple price prediction, this project leverages **Self-Supervised Deep Learning**. It employs a **Transformer-based Autoencoder** to compress high-dimensional, noisy market data into dense, informative latent embeddings. These embeddings are then analyzed using **Unsupervised Hierarchical Clustering** to identify distinct asset clusters, effectively implementing a modern, AI-driven version of Ray Dalio's "Holy Grail" diversification philosophy.
+The strategy's evolution was driven by a critical insight into the limitations of standard "Multi-Asset" deep learning models:
 
-The strategy is validated through a strict **Walk-Forward Analysis**, training on historical data (2023-2024) and testing performance on unseen out-of-sample data (2025 YTD), achieving significant Alpha against the S&P 500 benchmark.
+### 1. Why Pure Equity? (The "Multi-Asset" Dilemma)
+In earlier iterations, mixing asset classes (Stocks, Bonds, Forex, Commodities) revealed a fatal flaw in single-model architectures: **The "Safe Haven" Bias.**
+* **The Problem:** Financial instruments have vastly different statistical properties. Short-term Treasuries (like BIL/SHV) possess near-zero volatility, artificially inflating their Sharpe Ratios compared to equities.
+* **The Consequence:** A "Max-Sharpe" optimizer, when presented with mixed assets, lazily allocates 90%+ capital to cash equivalents to minimize variance, resulting in a flat "dead fish" equity curve that misses all equity bull runs.
+* **The Solution:** To build a strategy that actually captures growth, we restricted the universe to **350+ liquid S&P 500 stocks**. This forces the AI to hunt for Alpha *within* the equity risk premium, rather than hiding in risk-free assets.
 
----
+### 2. Deep Learning as a "Feature Extractor"
+Inspired by **NLP (Natural Language Processing)**, this project treats daily price action not as random walks, but as "sequences" with latent grammar.
+* Instead of feeding raw prices to a predictor, we use a **Transformer Autoencoder** to compress 30-day noisy market data into dense **Latent Embeddings**.
+* This allows the model to "see" market regimes (e.g., "Tech Momentum", "Defensive Rotation") that are invisible to linear correlation matrices.
+
+### 3. "Winner-Takes-Most" Allocation
+Moving away from conservative Risk Parity, the allocation logic is inspired by the **Power Law** distribution of stock returns.
+* We use a **Softmax-weighted** approach (Temperature $T=0.5$).
+* This mimics the behavior of top-performing active managers: aggressively tilting weights towards the top decile of high-conviction assets while maintaining a diversified tail, rather than equally weighting mediocrity.
 
 ## 🚀 Key Features
 
-* **State-of-the-Art Architecture**: Utilizes `nn.TransformerEncoder` with Self-Attention mechanisms to capture long-range temporal dependencies in financial time series.
-* **Multi-Asset Universe**: Processes a diverse universe of **300+ assets** including Global Equities, Government Bonds, Forex, Commodities, and ETFs.
-* **Robust Feature Engineering**: Implements stationarity-adjusted technical indicators (RSI, MACD, Volatility) and uses `RobustScaler` to handle financial outliers.
-* **Unsupervised Regime Detection**: Uses Agglomerative Clustering on latent embeddings to group assets based on behavioral similarity rather than static sector labels.
-* **Risk-Adjusted Optimization**: Selects the highest Sharpe Ratio asset within each cluster to maximize risk-adjusted returns.
-* **Hardware Acceleration**: Automatically detects and utilizes **CUDA** (NVIDIA) or **MPS** (Apple Silicon) for high-performance training.
+* **Universe:** 350+ S&P 500 Constituents (Filtered for liquidity and data integrity).
+* **9-Factor Feature Engineering:** A robust multi-dimensional view of every asset, including:
+    * *Momentum:* 10-Day ROC.
+    * *Trend:* MACD, Distance-to-MA50.
+    * *Volatility:* ATR (Average True Range), Rolling Volatility.
+    * *Mean Reversion:* Bollinger Bands %B.
+    * *Market Beta:* Rolling correlation with SPY.
+* **Rolling Walk-Forward Backtest:**
+    * **Training:** 4-Year Moving Window (1008 trading days) to capture long-term structural dependencies.
+    * **Validation:** 2-Year Out-of-Sample (2024-2026), simulating a real-world quarterly rebalancing fund.
+* **Regime-Based Clustering:** Uses **Agglomerative Clustering** on latent embeddings to ensure the portfolio selects stocks that are *behaviorally distinct*, avoiding the trap of buying 30 correlated tech stocks.
 
----
+## ⚙️ Technical Architecture
 
-## 🧠 Methodology & Mathematical Framework
+### 1. Data Pipeline
+* **Source:** Yahoo Finance (`yfinance`).
+* **Preprocessing:** Automatic handling of delisted tickers (e.g., removal of MRO, DFS) and `RobustScaler` normalization to handle fat-tail distribution in stock returns.
 
-The project pipeline consists of three distinct phases:
+### 2. The Model (Transformer AE)
+* **Encoder:** 2-Layer Transformer with Multi-Head Attention ($d_{model}=64$, $n_{head}=4$).
+* **Task:** Reconstruction of the 9-factor technical state.
+* **Output:** A static vector embedding representing the asset's current "market state."
 
-### Phase 1: Feature Extraction (The "Brain")
-The core of the system is a **Transformer Autoencoder**. Its goal is to learn a compact representation (Embedding) of an asset's recent behavior.
+### 3. Portfolio Construction
+The "Brain" of the strategy follows a strict logic:
+1.  **Filter:** Exclude assets with negative Sharpe Ratios over the lookback period.
+2.  **Cluster:** Group remaining stocks into **30 Clusters** based on latent similarity.
+3.  **Select:** Pick the #1 Stock from each cluster (Best-in-Class).
+4.  **Weight:** Apply **Softmax Optimization** to allocate capital based on risk-adjusted momentum.
 
-* **Input**: A sequence of 30 days of technical indicators ($X \in \mathbb{R}^{30 \times 5}$).
-    * *Features*: Log Returns, Log Volume Change, RSI, MACD Difference, Volatility.
-* **Encoder**:
-    * Projects input to a high-dimensional space ($d_{model} = 64$).
-    * Adds **Positional Embeddings** to retain temporal order information.
-    * Applies **Multi-Head Self-Attention**:
-        $$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V$$
-        This allows the model to weigh the importance of different days in the 30-day window, capturing complex non-linear dependencies.
-* **Bottleneck (Latent Space)**: A Global Mean Pooling layer compresses the sequence into a single static vector ($Z \in \mathbb{R}^{64}$). This vector represents the "DNA" of the asset.
-* **Decoder**: Attempts to reconstruct the original input from the bottleneck.
-* **Objective**: Minimize the Reconstruction Loss (MSE) to force the model to filter noise and retain signal.
-    $$\mathcal{L} = \frac{1}{N} \sum (X_{original} - X_{reconstructed})^2$$
+## 📊 Performance Characteristics
 
-### Phase 2: Portfolio Construction (The "Strategy")
-Once the model is trained, we discard the decoder and use the encoder to generate embeddings for all 300+ assets at the rebalancing date (2024-12-31).
+* **Alpha Generation:** Demonstrated significant excess returns over SPY in 2024-2025 backtests.
+* **Dynamic Rotation:** Successfully captured sector rotations, shifting exposure from Tech (2023) to Healthcare/Industrials (2024) as market regimes shifted.
+* **Drawdown Profile:** Higher volatility than a bond portfolio, but with significantly faster recovery times compared to the broad index.
 
-1.  **Normalization**: Embeddings are normalized to the unit hypersphere to focus on directional similarity.
-2.  **Clustering**: We apply **Agglomerative Hierarchical Clustering** (Ward's linkage) to group assets into $K=20$ distinct clusters based on Euclidean distance in the latent space.
-    * *Hypothesis*: Assets in different clusters are mathematically uncorrelated.
-3.  **Selection**: Inside each cluster, we calculate the historical **Sharpe Ratio** (2023-2024) and select the single best-performing asset. This ensures we pick the "winner" of each unique market regime.
+## 📊 Backtest Results (Visual Proof)
 
-### Phase 3: Out-of-Sample Validation (The "Test")
-To prevent look-ahead bias, the strategy is strictly tested on unseen data:
-* **Training Period**: Jan 1, 2023 – Dec 31, 2024.
-* **Testing Period**: Jan 1, 2025 – Present.
-* **Benchmark**: SPDR S&P 500 ETF Trust (SPY).
+The following chart illustrates the strategy's cumulative performance during the **Out-of-Sample validation period (2024–Present)**.
 
----
+![Rolling Backtest Results](results.png)
 
-## 📊 Performance Results
+> *Figure 1: The Blue Line represents the AI-Driven Pure Stock Strategy, while the Grey Dashed Line represents the S&P 500 Benchmark (SPY).*
 
-The following chart illustrates the cumulative returns of the AI-selected portfolio (Red) versus the S&P 500 Benchmark (Grey) during the out-of-sample testing period (Jan 1, 2025 – Present).
+### Key Observations:
+1.  **Significant Alpha:** The strategy achieved a final capital of **~$16,458** (+64.6%) compared to the benchmark's ~$15,000, confirming the model's ability to generate excess returns without leverage.
+2.  **No "Cash Drag":** Unlike previous iterations that flat-lined by holding T-Bills, this curve shows active participation in market rallies (e.g., Q1 2024 and Late 2025).
+3.  **Resilient Recovery:** During market pullbacks (e.g., April 2024), the strategy demonstrated a capability to recover faster than the index, driven by its rotation into high-momentum sectors.
 
-![Performance Chart](results.png)
+| Metric | AI Strategy | S&P 500 (Benchmark) |
+| :--- | :--- | :--- |
+| **Total Return** | **+64.6%** | ~50.2% |
+| **Exposure** | **100% Equity** | 100% Equity |
+| **Rebalancing** | Quarterly | N/A |
+| **Top Sector Bets** | Tech, Healthcare, Industrials | Diversified |
 
-> **Analysis**: The divergence between the two lines represents the **Alpha** generated by the strategy. A higher slope for the strategy line indicates superior risk-adjusted returns, while the smoothness of the curve reflects lower realized volatility due to the clustering-based diversification.
+## 🛠️ Future Roadmap (Towards True Multi-Asset)
+To re-introduce Multi-Asset capabilities without the "Cash Trap," future versions will implement:
+* **Hierarchical Risk Parity (HRP):** To balance risk contributions across asset classes rather than Sharpe maximization.
+* **Regime-Switching Models:** Different sub-models for Equities, Bonds, and Commodities, aggregated by a top-level meta-learner.
 
----
-
-## ⚠️ Limitations & Critical Analysis
-
-Transparency about limitations is a hallmark of rigorous quantitative research. While the current framework demonstrates significant potential, it is essential to acknowledge its constraints:
-
-1.  **Static Rebalancing**:
-    The current implementation rebalances the portfolio only once (at the end of the training period). It does not dynamically adjust weights or rotate assets as market conditions change during the testing phase. This makes it vulnerable to sudden regime shifts (e.g., a flash crash or interest rate shock) that occur *after* the rebalancing date.
-
-2.  **Look-Ahead Bias in Feature Scaling**:
-    Although we split training and testing data, the `RobustScaler` is fitted on the entire training history in this experimental version. In a live production environment, scaling parameters would need to be updated in a rolling window to strictly prevent data leakage.
-
-3.  **Transaction Costs & Slippage**:
-    The backtest assumes execution at the exact closing price with zero fees. In reality, trading 20 diverse assets (including potentially illiquid ETFs or small caps) would incur spreads and commissions that could erode the theoretical Alpha, especially with more frequent rebalancing.
-
-4.  **Short Context Window**:
-    The model uses a `SEQUENCE_LENGTH` of 30 days. While this captures short-term momentum and volatility clusters, it may miss longer-term macro cycles (e.g., year-long inflationary trends) that a deeper model with a longer context window might catch.
-
-5.  **Stationarity Assumption**:
-    The core hypothesis assumes that assets with similar *past* behavior (embeddings) will continue to behave similarly in the near future. Financial markets are inherently non-stationary; correlations often break down during liquidity crises (when "all correlations go to 1").
-
----
-
-## 🔮 Future Improvements & Roadmap
-
-To evolve this project from a research prototype into an institutional-grade trading system, the following enhancements are planned:
-
-### 1. Dynamic Rolling Window Backtesting
-* **Current**: Train (2023-24) -> Test (2025).
-* **Upgrade**: Implement a **Walk-Forward Validation** framework.
-    * *Example*: Train on Jan-Mar, Test on Apr; Train on Feb-Apr, Test on May.
-    * This allows the model to adapt to changing market regimes and provides a more statistically significant performance metric.
-
-### 2. Advanced Model Architectures
-* **Temporal Fusion Transformers (TFT)**: Incorporate static covariates (e.g., sector labels, market cap) alongside dynamic time-series data.
-* **Variational Autoencoders (VAE)**: Instead of mapping to a single point, map inputs to a *probability distribution* in the latent space. This would allow for uncertainty quantification and better risk management.
-* **LSTM/GRU Hybrids**: Combine the long-term memory of RNNs with the attention mechanism of Transformers for a hybrid encoder.
-
-### 3. Alternative Data Integration
-* **Macro Factors**: Feed Federal Reserve interest rates, CPI data, and bond yield curves into the model as exogenous variables.
-* **Sentiment Analysis**: Scrape financial news (Bloomberg/Reuters) or social sentiment (Twitter/Reddit) using NLP (BERT/RoBERTa) to generate a "Sentiment Score" feature.
-
-### 4. Reinforcement Learning (RL) Agent
-* Instead of a static "Cluster & Select" heuristic, train a **Deep Q-Network (DQN)** or **PPO Agent** that takes the Transformer's embeddings as state inputs and outputs direct trading actions (Buy/Sell/Hold) to maximize the Sharpe Ratio directly.
-
-### 5. Risk Management Layer
-* **Volatility Targeting**: Dynamically scale position sizes based on the predicted volatility of each cluster.
-* **Stop-Loss / Take-Profit**: Implement logic to automatically cut losing positions or lock in gains when the embedding distance exceeds a certain threshold (indicating a regime shift).
+## ⚠️ Disclaimer
+This project is a research prototype for **AI-driven quantitative finance**. It is not financial advice. Past performance in backtests does not guarantee future live results.
